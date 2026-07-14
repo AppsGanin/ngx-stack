@@ -69,8 +69,15 @@ const swipe = async ({ rtl = false, to } = {}) => {
   await page.mouse.down();
   await page.mouse.move(rtl ? from - 16 : from + 16, 500, { steps: 2 });
   await page.mouse.move(target, 500, { steps: 10 });
+
+  // Look at the pages while the button is still down. If nothing has moved, the gesture never
+  // armed — which is a different bug from one that armed and then decided to snap back, and the
+  // two are indistinguishable once the mouse is up.
+  const dragging = (await allPages()).filter((p) => !p.hidden).map((p) => `${p.tag}@${p.x}`);
+
   await page.mouse.up();
   await settle(400);
+  return dragging;
 };
 
 const tab = (name) => page.locator(`[data-tab=${name}]`).click();
@@ -157,8 +164,12 @@ check(
 );
 
 // --------------------------------------------------------- complete a swipe
-await swipe();
-check('swipe back: URL popped', page.url().endsWith('/inbox'), page.url());
+const dragging = await swipe();
+check(
+  'swipe back: URL popped',
+  page.url().endsWith('/inbox'),
+  `${page.url()} | mid-drag: ${dragging}`,
+);
 check('swipe back: popped page destroyed', (await countIn(INBOX)) === 1);
 const scroll = await page.evaluate(() => document.querySelector('demo-inbox').scrollTop);
 check('swipe back: scroll preserved', scroll === 420, `scrollTop=${scroll}`);
