@@ -67,13 +67,12 @@ const swipe = async ({ rtl = false, to } = {}) => {
   const target = to ?? (rtl ? 60 : 330);
   await page.mouse.move(from, 500);
 
-  // What the mousedown is about to land on. The gesture listens on the outlet, so this has to be an
-  // element inside it — an `inert` ancestor, or anything that swallows the event, and the drag never
-  // starts at all.
-  const under = await page.evaluate((x) => {
+  // What the stack thinks its own state is, straight from the outlet's signals. `animating` is the
+  // one that matters: the gesture refuses to start while a transition is in flight, and a transition
+  // that never finished looks exactly like a gesture that mysteriously does nothing.
+  const before = await page.evaluate((x) => {
     const el = document.elementFromPoint(x, 500);
-    const inertAncestor = el?.closest('[inert]');
-    return `${el?.tagName.toLowerCase()}.${el?.className || '-'}${inertAncestor ? ' ← INSIDE [inert]' : ''}`;
+    return `${JSON.stringify(window.__stack)} hit=${el?.tagName.toLowerCase()}`;
   }, from);
 
   await page.mouse.down();
@@ -95,7 +94,7 @@ const swipe = async ({ rtl = false, to } = {}) => {
 
   await page.mouse.up();
   await settle(400);
-  return `${dragging} | mousedown hit: ${under}`;
+  return `before: ${before} | during: ${dragging}`;
 };
 
 const tab = (name) => page.locator(`[data-tab=${name}]`).click();
