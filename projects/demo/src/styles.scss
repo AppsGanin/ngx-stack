@@ -1,3 +1,19 @@
+/*
+ * `width: 100%` on an element with padding and a border means 100% *plus* the padding and the
+ * border — content-box is the CSS default, and it is the reason an input set to full width runs off
+ * the right edge of a phone. Buttons get away with it because browsers already give them border-box;
+ * inputs do not.
+ *
+ * A page here has `overflow: hidden` (a page must not scroll sideways while a finger is dragging it),
+ * so the overflow doesn't even announce itself as a scrollbar — it is simply clipped, and you notice
+ * only on a narrow screen when the end of a field has vanished.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 /* The stack fills the viewport and never scrolls itself — pages scroll, the host does not. */
 html,
 body {

@@ -518,6 +518,57 @@ check('deep link: swipe works immediately', page.url().endsWith('/inbox/item/12'
 await swipe();
 check('deep link: swipe all the way out', page.url().endsWith('/inbox'), page.url());
 
+// ===========================================================================
+// Nothing runs off the side of a narrow phone
+// ===========================================================================
+
+// A page has `overflow: hidden` — it must not scroll sideways while a finger is dragging it — so an
+// element that is too wide doesn't announce itself with a scrollbar. It is simply cut off, and you
+// find out on someone's phone. `width: 100%` on an input with padding and a border is the classic
+// way in: content-box makes that 100% *plus* the padding and the border.
+await page.setViewportSize({ width: 320, height: 700 });
+
+const overflowsOn = async (url, label, after) => {
+  await page.goto(`${BASE}${url}`);
+  await page.waitForSelector('.ngx-stack-page:not(.ngx-stack-page--hidden)');
+  await settle(600);
+  if (after) await after();
+
+  return page.evaluate((vw) => {
+    const bad = [];
+    for (const el of document.querySelectorAll('.ngx-stack-page:not(.ngx-stack-page--hidden) *')) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) return bad;
+
+      const name =
+        el.tagName.toLowerCase() + (el.className ? `.${String(el.className).split(' ')[0]}` : '');
+
+      if (Math.round(r.right - vw) > 1) bad.push(`${name} +${Math.round(r.right - vw)}px`);
+      if (el.scrollWidth - el.clientWidth > 1) bad.push(`${name} clipped`);
+    }
+    return [...new Set(bad)];
+  }, 320);
+};
+
+for (const [url, label, after] of [
+  ['/inbox', 'inbox'],
+  [
+    '/inbox/item/3',
+    'item',
+    () => page.locator('demo-item input').fill('a long draft, to stress it'),
+  ],
+  ['/inbox/item/3/notes', 'notes'],
+  ['/starred', 'starred'],
+  ['/search', 'search', () => page.locator('demo-search input').fill('a long query, to stress it')],
+  ['/search/result/2', 'result'],
+  ['/settings', 'settings'],
+  ['/settings/guarded', 'guarded'],
+  ['/settings/sheet', 'sheet'],
+]) {
+  const bad = await overflowsOn(url, label, after);
+  check(`320px: nothing overflows on ${label}`, bad.length === 0, bad.join(', '));
+}
+
 // ---------------------------------------------------------------- summary
 const failed = results.filter((r) => !r.pass);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);

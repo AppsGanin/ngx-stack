@@ -25,7 +25,7 @@ import type { NgxStackPage } from 'ngx-stack';
         [value]="query()"
         (input)="query.set($any($event.target).value)"
         placeholder="Type here, then switch tabs and come back"
-        style="width: 100%; padding: 10px; font: inherit; border: 1px solid #ccc; border-radius: 8px"
+        class="field"
       />
     </div>
 

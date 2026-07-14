@@ -23,7 +23,7 @@ import { NgxStackNav } from 'ngx-stack';
         [value]="draft()"
         (input)="draft.set($any($event.target).value)"
         placeholder="Type, swipe back, then return — it's still here"
-        style="width: 100%; padding: 10px; font: inherit; border: 1px solid #ccc; border-radius: 8px"
+        class="field"
       />
 
       <button class="big" type="button" (click)="notes()">Push a third page</button>
