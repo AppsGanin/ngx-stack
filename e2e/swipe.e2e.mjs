@@ -66,18 +66,36 @@ const swipe = async ({ rtl = false, to } = {}) => {
   const from = rtl ? 386 : 4;
   const target = to ?? (rtl ? 60 : 330);
   await page.mouse.move(from, 500);
+
+  // What the mousedown is about to land on. The gesture listens on the outlet, so this has to be an
+  // element inside it — an `inert` ancestor, or anything that swallows the event, and the drag never
+  // starts at all.
+  const under = await page.evaluate((x) => {
+    const el = document.elementFromPoint(x, 500);
+    const inertAncestor = el?.closest('[inert]');
+    return `${el?.tagName.toLowerCase()}.${el?.className || '-'}${inertAncestor ? ' ← INSIDE [inert]' : ''}`;
+  }, from);
+
   await page.mouse.down();
   await page.mouse.move(rtl ? from - 16 : from + 16, 500, { steps: 2 });
   await page.mouse.move(target, 500, { steps: 10 });
 
-  // Look at the pages while the button is still down. If nothing has moved, the gesture never
-  // armed — which is a different bug from one that armed and then decided to snap back, and the
-  // two are indistinguishable once the mouse is up.
-  const dragging = (await allPages()).filter((p) => !p.hidden).map((p) => `${p.tag}@${p.x}`);
+  // Look at the pages while the button is still down. If nothing has moved, the gesture never armed
+  // — a different bug from one that armed and then snapped back, and the two are indistinguishable
+  // once the mouse is up.
+  const dragging = await page.evaluate(() => {
+    const pages = [...document.querySelectorAll('.ngx-stack-page')].map((e) => {
+      const x = Math.round(new DOMMatrix(getComputedStyle(e).transform).m41);
+      return `${e.firstElementChild.tagName.toLowerCase()}@${x}${e.inert ? ' INERT' : ''}${
+        e.classList.contains('ngx-stack-page--hidden') ? ' hidden' : ''
+      }`;
+    });
+    return pages.join(', ');
+  });
 
   await page.mouse.up();
   await settle(400);
-  return dragging;
+  return `${dragging} | mousedown hit: ${under}`;
 };
 
 const tab = (name) => page.locator(`[data-tab=${name}]`).click();
