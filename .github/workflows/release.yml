@@ -97,6 +97,23 @@ jobs:
         # have moved on since.
         run: git checkout "v${{ steps.v.outputs.version }}"
 
+      - name: The tag must agree with the package
+        if: steps.v.outputs.published == 'false'
+        # A tag is a promise, and here it is the *only* thing we trust: the dist-tag is worked out
+        # from the tag's name, but `npm publish` ships whatever version sits in package.json. If a
+        # hand-made `v23.0.0` points at a commit that still says 22.5.0, we would publish 22.5.0
+        # under a dist-tag computed for 23 — a package that lies about itself, with no error anywhere.
+        #
+        # `npm run release` keeps the two in step by construction. This is for the tag someone made
+        # by hand.
+        run: |
+          PKG=$(node -p "require('./projects/ngx-stack/package.json').version")
+          if [ "$PKG" != "${{ steps.v.outputs.version }}" ]; then
+            echo "::error::Tag v${{ steps.v.outputs.version }} points at a commit whose package.json says $PKG."
+            exit 1
+          fi
+          echo "v${{ steps.v.outputs.version }} ↔ package.json $PKG"
+
       - name: Build
         if: steps.v.outputs.published == 'false'
         run: npm run build

@@ -278,7 +278,49 @@ git push --follow-tags
 
 `npm run release` refuses to run if the three numbers disagree, so you cannot forget the peer range.
 
-**Releasing a fix for an old Angular:**
+### A bug that needs fixing in both 22 and 23
+
+The normal case, and the whole reason the branches exist.
+
+```bash
+# 1. Fix it on main, where the newest Angular lives.
+git checkout main
+git commit -m "fix(gesture): don't arm inside a horizontal scroller"
+git push
+
+# 2. Ship it to everyone on Angular 23.
+npm run release -- 23.0.1
+git push --follow-tags          # → npm dist-tag: latest
+
+# 3. Take the same commit back to Angular 22.
+git checkout 22.x
+git cherry-pick <the fix>
+git push                        # CI runs on 22.x too — same lint, tests, e2e
+
+# 4. Ship it to everyone still on Angular 22.
+npm run release -- 22.0.1
+git push --follow-tags          # → npm dist-tag: v22-lts
+```
+
+Two releases, two tags, two npm versions. Nothing you do on one branch can touch the other.
+
+**Why the dist-tag matters, concretely.** After step 4, npm holds `23.0.1` (tagged `latest`) and
+`22.0.1` (tagged `v22-lts`). And yet:
+
+| Who                                                 | What they get | Why                                                            |
+| --------------------------------------------------- | ------------- | -------------------------------------------------------------- |
+| An app on Angular 22, with `"ngx-stack": "^22.0.0"` | **22.0.1**    | Their semver range resolves to it. The dist-tag is irrelevant. |
+| Someone typing `npm i ngx-stack` fresh              | **23.0.1**    | A bare install follows `latest`.                               |
+
+That is exactly the outcome you want, and it depends entirely on `22.0.1` **not** being published as
+`latest`. Publish it plainly and every new project silently installs an Angular-22 package. No error,
+no warning. That one line in [`scripts/version.mjs`](scripts/version.mjs) is doing all the work, and
+it is why it asks the registry what `latest` currently is instead of trusting a branch name.
+
+**What can't go wrong:** cutting `23.0.1` from the `22.x` branch. `npm run release` runs
+`check:versions`, which knows the branch it is standing on and refuses.
+
+### Releasing a fix for an old Angular
 
 ```bash
 git checkout 22.x
