@@ -4,11 +4,17 @@ name: Release
 # built or published from a laptop.
 #
 #   Button   Actions → Release → Run workflow, type the version. CI does the bump, changelog,
-#            commit and tag. Pick the branch in the UI: `main` for the current Angular, `22.x` for a
+#            commit and tag. Pick the branch there too: `main` for the current Angular, `22.x` for a
 #            fix to an old one.
 #
 #   Tag      `npm run release -- 22.1.0 && git push --follow-tags`, if you'd rather do the bump
 #            locally and read the changelog before it leaves your machine.
+#
+# **Every step is safe to run twice.** A release is a sequence of irreversible acts — a commit, a
+# tag, a publish — and the one thing you can be sure of is that one of them will fail halfway. A job
+# that cannot be re-run after that is a trap: re-running the first version of this workflow tried to
+# tag an already-tagged commit on a stale checkout, and pushed a second release commit at a branch
+# that had moved. So each step now asks whether it has already happened.
 on:
   workflow_dispatch:
     inputs:
@@ -20,8 +26,7 @@ on:
     tags: ['v*']
 
 jobs:
-  # The same checks as every other push — reused, not copied, so they cannot drift. A commit that
-  # can't pass CI doesn't get a version number.
+  # The same checks as every other push — reused, not copied, so they cannot drift.
   verify:
     uses: ./.github/workflows/ci.yml
 
@@ -35,6 +40,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # The *current* tip of the branch, not the SHA this run was dispatched at. A re-run after a
+          # half-finished release must not build on a stale main — that is exactly how you get a
+          # second release commit and a non-fast-forward push.
+          ref: ${{ github.ref_name }}
           fetch-depth: 0 # the changelog is generated from the history
 
       - uses: actions/setup-node@v4
@@ -45,45 +54,55 @@ jobs:
 
       - run: npm ci
 
-      # --- Button: do the bump here -----------------------------------------
-      - name: Identify as the bot
-        if: github.event_name == 'workflow_dispatch'
+      - name: What are we releasing?
+        id: v
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists — the bump has been done."
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if npm view "ngx-stack@$VERSION" version >/dev/null 2>&1; then
+            echo "ngx-stack@$VERSION is already on npm — nothing left to do."
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- Bump, but only if it hasn't happened yet --------------------------
       - name: Bump, changelog, commit, tag
-        if: github.event_name == 'workflow_dispatch'
+        if: steps.v.outputs.tagged == 'false'
         # Writes the version *and* the peer range — both are the Angular major, so neither is typed
         # by hand — regenerates the changelog from the conventional commits, then commits and tags.
         # Refuses if the major disagrees with the branch, or with the Angular the workspace builds on.
         run: |
-          node scripts/version.mjs release "${{ inputs.version }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/version.mjs release "${{ steps.v.outputs.version }}"
           git push --follow-tags
 
-      # --- Tag: the bump already happened; check it told the truth -----------
-      - name: Refuse a tag that disagrees with the package
-        if: github.event_name == 'push'
-        # A tag is a promise. `v22.1.0` pointing at a commit whose package.json says 22.0.9 would
-        # publish 22.0.9 under a name nobody can ever find again.
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          PKG=$(node -p "require('./projects/ngx-stack/package.json').version")
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag v$TAG does not match package version $PKG."
-            exit 1
-          fi
+      # --- Publish exactly what the tag points at ---------------------------
+      - name: Check out the tag
+        if: steps.v.outputs.published == 'false'
+        # Whether we just created it or it was already there. The tag is the release; the branch may
+        # have moved on since.
+        run: git checkout "v${{ steps.v.outputs.version }}"
 
-      # --- From here the two paths are identical ----------------------------
-      - name: Resolve the version
-        id: v
-        run: |
-          VERSION=$(node -p "require('./projects/ngx-stack/package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - run: npm run build
+      - name: Build
+        if: steps.v.outputs.published == 'false'
+        run: npm run build
 
       - name: Work out the dist-tag
+        if: steps.v.outputs.published == 'false'
         id: tag
         # Asked of the registry, not of the branch name. `npm publish` moves `latest` by default, so
         # a fix for Angular 22 released after 23 is out would silently become what every new
@@ -94,9 +113,13 @@ jobs:
           echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
+        if: steps.v.outputs.published == 'false'
         working-directory: dist/ngx-stack
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # NPM_TOKEN must be a *granular* access token with "bypass 2FA" enabled, or a classic
+        # *automation* token. A plain publish token is refused with a 403 asking for 2FA, which no CI
+        # can provide.
         run: npm publish --tag "${{ steps.tag.outputs.dist_tag }}"
 
       - name: GitHub release

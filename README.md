@@ -160,8 +160,27 @@ Every green push to `main` deploys the demo to GitHub Pages, release or not.
 
 ### Repo settings this needs
 
-- **Secret `NPM_TOKEN`** — an npm _automation_ token. `GITHUB_TOKEN` is provided for you.
+- **Secret `NPM_TOKEN`** — and the _kind_ of token matters. It must be a **granular access token with
+  "bypass 2FA" enabled**, or a classic **automation** token. Anything else is refused:
+
+  ```
+  npm error 403 Forbidden - PUT https://registry.npmjs.org/ngx-stack
+  Two-factor authentication or granular access token with bypass 2fa enabled is required
+  ```
+
+  Which is npm asking CI to type a 2FA code, something no CI can do. `GITHUB_TOKEN` is provided.
+
 - **Pages → Source: GitHub Actions.**
+
+### Releases are safe to re-run
+
+A release is a chain of irreversible acts — a commit, a tag, a publish — and sooner or later one of
+them fails halfway through. Every step therefore asks whether it has already happened: if the tag
+exists, the bump is skipped; if the version is already on npm, the publish is skipped. Re-running a
+release that died at the publish step just publishes.
+
+The workflow also checks out the branch's **current tip** rather than the SHA the run was dispatched
+at, because a re-run of a half-finished release must not build on a `main` that has since moved.
 
 ## Supporting several Angular versions
 
