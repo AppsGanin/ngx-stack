@@ -342,7 +342,13 @@ await page.waitForTimeout(200);
 // maxDepth — the cap, and coming back past it
 // ===========================================================================
 
-await tabRoot('inbox');
+// The demo runs uncapped, which is the library's default and what an app almost always wants. The
+// cap is a real feature though, so the demo takes it from the query string and the test switches it
+// on here rather than making everyone else live with it.
+await page.goto(`${BASE}/inbox?maxDepth=5`);
+await page.waitForSelector('demo-inbox');
+await settle(600);
+
 await page.getByText('Message 1', { exact: true }).click();
 await settle(600);
 
@@ -364,7 +370,12 @@ for (let i = 0; i < 5; i++) {
   await page.goBack();
   await settle(450);
 }
-check('maxDepth: walked back to a pruned page', page.url().endsWith('/inbox'), page.url());
+// The query string that switched the cap on rides along, so compare the path, not the whole URL.
+check(
+  'maxDepth: walked back to a pruned page',
+  new URL(page.url()).pathname === '/inbox',
+  page.url(),
+);
 check('maxDepth: pruned page was rebuilt', await page.locator('demo-inbox').isVisible());
 const restoreEvent = await lastTransition();
 check(
@@ -373,6 +384,11 @@ check(
   JSON.stringify(restoreEvent),
 );
 check('maxDepth: stack collapsed to just it', (await countIn(INBOX)) === 1);
+
+// Back to the uncapped demo, so the sections below run against the default.
+await page.goto(`${BASE}/inbox`);
+await page.waitForSelector('demo-inbox');
+await settle(600);
 
 // ===========================================================================
 // Imperative stack + nesting

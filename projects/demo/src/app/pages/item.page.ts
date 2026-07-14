@@ -28,7 +28,7 @@ import { NgxStackNav } from 'ngx-stack';
 
       <button class="big" type="button" (click)="notes()">Push a third page</button>
       <button class="big" type="button" data-test="deeper" (click)="deeper()">
-        Push /inbox/item/{{ id + 1 }} — go deep enough and maxDepth starts pruning
+        Push /inbox/item/{{ id + 1 }} — go as deep as you like, every page keeps its state
       </button>
       <button class="big" type="button" (click)="home()" style="background: #8e8e93">
         Reset the whole app to Inbox (root)

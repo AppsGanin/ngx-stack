@@ -4,6 +4,17 @@ import { androidTransition, iosTransition, provideNgxStack, webTransition } from
 
 import { routes } from './app.routes';
 
+/**
+ * No cap by default — go as deep as you like and every page keeps its state, which is what the
+ * library does out of the box and what almost every app wants.
+ *
+ * `?maxDepth=5` turns the cap on, because it is a real feature and it deserves to stay demonstrable
+ * and, more to the point, testable: the e2e opens the demo with it to prove that a page which falls
+ * off the bottom is destroyed, and that walking back to it rebuilds it — still as a *back*
+ * transition, just without its state.
+ */
+const maxDepth = Number(new URLSearchParams(location.search).get('maxDepth') ?? 0) || 0;
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
@@ -32,10 +43,9 @@ export const appConfig: ApplicationConfig = {
       // config: `data: { parent }` where declared, otherwise the URL's own nesting.
       deepLinks: true,
 
-      // Deliberately small so the cap is easy to hit. Go five deep in Inbox and the bottom page
-      // is destroyed; go back to it and it's rebuilt from its URL — still a back transition, but
-      // its state is gone. That is the trade, and this is what it looks like.
-      maxDepth: 5,
+      // 0 — no cap. Pages are cheap but not free; set one only for a stack you can descend
+      // forever (a chat, a wiki, a file browser). Try it here with `?maxDepth=5`.
+      maxDepth,
 
       // Lets the edge drag be performed with a mouse. For development; leave off in production.
       swipeWithMouse: true,
