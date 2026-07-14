@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { NgxStackTabs, NgxStackOutlet, type StackTransitionEvent } from 'ngx-stack';
 
 /**
@@ -87,23 +87,6 @@ import { NgxStackTabs, NgxStackOutlet, type StackTransitionEvent } from 'ngx-sta
 })
 export class App {
   protected readonly tabs = inject(NgxStackTabs);
-
-  private readonly outlet = viewChild.required(NgxStackOutlet);
-
-  constructor() {
-    // Publishes the outlet's own signals so the e2e can see what the stack thinks its state is,
-    // rather than inferring it from pixels. `animating` is the one that matters: the gesture refuses
-    // to start while a transition is in flight, and a transition that never finished would look
-    // exactly like a gesture that mysteriously does nothing.
-    effect(() => {
-      (window as unknown as { __stack?: unknown }).__stack = {
-        depth: this.outlet().depth(),
-        canGoBack: this.outlet().canGoBack(),
-        animating: this.outlet().animating(),
-        activeTab: this.outlet().activeTab(),
-      };
-    });
-  }
 
   /** Just to show the events exist. A real app might stop a spinner or log analytics here. */
   onTransition(event: StackTransitionEvent): void {

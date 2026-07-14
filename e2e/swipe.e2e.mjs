@@ -61,56 +61,32 @@ const settle = async (min = 600) => {
   );
 };
 
+/**
+ * Move the mouse across, one event per frame.
+ *
+ * `page.mouse.move(x, y, { steps: n })` fires its n moves as fast as it can, and **Chromium coalesces
+ * mousemove to the frame rate** — so on a headless runner with no display, twelve moves arrive as one.
+ * That single event lands below the gesture's 10px direction lock, the drag never starts, and the
+ * whole thing looks like the library ignoring the mouse. It cost hours; a real finger produces moves
+ * spread over real time, which is what this reproduces.
+ */
+const dragTo = async (fromX, toX, y = 500, steps = 12) => {
+  for (let i = 1; i <= steps; i++) {
+    await page.mouse.move(fromX + ((toX - fromX) * i) / steps, y);
+    await page.waitForTimeout(16); // one frame — enough for the event to be delivered on its own
+  }
+};
+
 /** Drag from the leading edge all the way across. `rtl` starts at the right instead. */
 const swipe = async ({ rtl = false, to } = {}) => {
   const from = rtl ? 386 : 4;
   const target = to ?? (rtl ? 60 : 330);
+
   await page.mouse.move(from, 500);
-
-  // The gesture arms on geometry: it only starts inside `swipeEdgeWidth` px of the host's leading
-  // edge. If the host isn't where the test thinks it is, the drag is refused and looks like nothing.
-  const before = await page.evaluate((x) => {
-    const host = document.querySelector('ngx-stack-outlet');
-    const r = host.getBoundingClientRect();
-
-    // The gesture listens in the bubble phase. A capture listener fires on the way *down* no matter
-    // what; a bubble one only fires if the event actually made it back up. If these disagree,
-    // something between the page and the outlet is eating the event.
-    window.__md = { capture: 0, bubble: 0, move: 0 };
-    host.addEventListener('mousedown', () => window.__md.capture++, { capture: true, once: true });
-    host.addEventListener('mousedown', () => window.__md.bubble++, { once: true });
-    document.addEventListener('mousemove', () => window.__md.move++);
-
-    return (
-      `${JSON.stringify(window.__stack)} ` +
-      `host=[l:${Math.round(r.left)} w:${Math.round(r.width)} cw:${host.clientWidth}] ` +
-      `dir=${getComputedStyle(host).direction} ` +
-      `hit=${document.elementFromPoint(x, 500)?.tagName.toLowerCase()}`
-    );
-  }, from);
-
   await page.mouse.down();
-  await page.mouse.move(rtl ? from - 16 : from + 16, 500, { steps: 2 });
-  await page.mouse.move(target, 500, { steps: 10 });
-
-  // Look at the pages while the button is still down. If nothing has moved, the gesture never armed
-  // — a different bug from one that armed and then snapped back, and the two are indistinguishable
-  // once the mouse is up.
-  const dragging = await page.evaluate(() => {
-    const pages = [...document.querySelectorAll('.ngx-stack-page')].map((e) => {
-      const x = Math.round(new DOMMatrix(getComputedStyle(e).transform).m41);
-      return `${e.firstElementChild.tagName.toLowerCase()}@${x}${e.inert ? ' INERT' : ''}${
-        e.classList.contains('ngx-stack-page--hidden') ? ' hidden' : ''
-      }`;
-    });
-    return pages.join(', ');
-  });
-
-  const arrived = await page.evaluate(() => JSON.stringify(window.__md));
-
+  await dragTo(from, target);
   await page.mouse.up();
   await settle(400);
-  return `before: ${before} events=${arrived} | during: ${dragging}`;
 };
 
 const tab = (name) => page.locator(`[data-tab=${name}]`).click();
@@ -161,8 +137,7 @@ await page.locator('demo-item input').fill('survives everything');
 // -------------------------------------------------- swipe back, mid-flight
 await page.mouse.move(4, 500);
 await page.mouse.down();
-await page.mouse.move(20, 500, { steps: 2 });
-await page.mouse.move(195, 500, { steps: 8 }); // ~50% across a 390px viewport
+await dragTo(4, 195); // ~50% across a 390px viewport
 await page.waitForTimeout(60);
 
 const mid = await allPages();
@@ -187,7 +162,7 @@ check(
 );
 
 // ------------------------------------------------------------ abort a swipe
-await page.mouse.move(15, 500, { steps: 8 });
+await dragTo(195, 15);
 await page.mouse.up();
 await settle(700);
 check('abort: stayed put', page.url().endsWith('/inbox/item/12'), page.url());
@@ -197,12 +172,8 @@ check(
 );
 
 // --------------------------------------------------------- complete a swipe
-const dragging = await swipe();
-check(
-  'swipe back: URL popped',
-  page.url().endsWith('/inbox'),
-  `${page.url()} | mid-drag: ${dragging}`,
-);
+await swipe();
+check('swipe back: URL popped', page.url().endsWith('/inbox'), page.url());
 check('swipe back: popped page destroyed', (await countIn(INBOX)) === 1);
 const scroll = await page.evaluate(() => document.querySelector('demo-inbox').scrollTop);
 check('swipe back: scroll preserved', scroll === 420, `scrollTop=${scroll}`);
