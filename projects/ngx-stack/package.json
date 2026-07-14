@@ -1,0 +1,44 @@
+{
+  "name": "ngx-stack",
+  "version": "22.0.0",
+  "description": "Native-feeling page stacks for Angular: push/pop transitions and an interactive iOS swipe-to-go-back. Built for Capacitor and Cordova, works on the web.",
+  "keywords": [
+    "angular",
+    "capacitor",
+    "cordova",
+    "navigation",
+    "swipe-back",
+    "page-transition",
+    "router-outlet",
+    "tabs",
+    "ios",
+    "mobile"
+  ],
+  "homepage": "https://appsganin.github.io/ngx-stack/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AppsGanin/ngx-stack.git",
+    "directory": "projects/ngx-stack"
+  },
+  "bugs": {
+    "url": "https://github.com/AppsGanin/ngx-stack/issues"
+  },
+  "author": "Dmitry Ganin",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "ng-update": {
+    "migrations": "./schematics/migration.json"
+  },
+  "peerDependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/router": "^22.0.0"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

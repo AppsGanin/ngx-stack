@@ -1,0 +1,106 @@
+name: Release
+
+# Two ways in, one way out. Both end in the same verified build being published — nothing is ever
+# built or published from a laptop.
+#
+#   Button   Actions → Release → Run workflow, type the version. CI does the bump, changelog,
+#            commit and tag. Pick the branch in the UI: `main` for the current Angular, `22.x` for a
+#            fix to an old one.
+#
+#   Tag      `npm run release -- 22.1.0 && git push --follow-tags`, if you'd rather do the bump
+#            locally and read the changelog before it leaves your machine.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 23.0.0 (the major IS the Angular major)'
+        required: true
+        type: string
+  push:
+    tags: ['v*']
+
+jobs:
+  # The same checks as every other push — reused, not copied, so they cannot drift. A commit that
+  # can't pass CI doesn't get a version number.
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Tag and publish
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the release commit and tag; attach the release notes
+      id-token: write # npm provenance — proves the tarball was built by this workflow
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the changelog is generated from the history
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      # --- Button: do the bump here -----------------------------------------
+      - name: Identify as the bot
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump, changelog, commit, tag
+        if: github.event_name == 'workflow_dispatch'
+        # Writes the version *and* the peer range — both are the Angular major, so neither is typed
+        # by hand — regenerates the changelog from the conventional commits, then commits and tags.
+        # Refuses if the major disagrees with the branch, or with the Angular the workspace builds on.
+        run: |
+          node scripts/version.mjs release "${{ inputs.version }}"
+          git push --follow-tags
+
+      # --- Tag: the bump already happened; check it told the truth -----------
+      - name: Refuse a tag that disagrees with the package
+        if: github.event_name == 'push'
+        # A tag is a promise. `v22.1.0` pointing at a commit whose package.json says 22.0.9 would
+        # publish 22.0.9 under a name nobody can ever find again.
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./projects/ngx-stack/package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match package version $PKG."
+            exit 1
+          fi
+
+      # --- From here the two paths are identical ----------------------------
+      - name: Resolve the version
+        id: v
+        run: |
+          VERSION=$(node -p "require('./projects/ngx-stack/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - run: npm run build
+
+      - name: Work out the dist-tag
+        id: tag
+        # Asked of the registry, not of the branch name. `npm publish` moves `latest` by default, so
+        # a fix for Angular 22 released after 23 is out would silently become what every new
+        # `npm i ngx-stack` installs. See scripts/version.mjs.
+        run: |
+          DIST_TAG=$(node scripts/version.mjs dist-tag "${{ steps.v.outputs.version }}")
+          echo "Publishing ${{ steps.v.outputs.version }} under dist-tag: $DIST_TAG"
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm
+        working-directory: dist/ngx-stack
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --tag "${{ steps.tag.outputs.dist_tag }}"
+
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}
+          generate_release_notes: true

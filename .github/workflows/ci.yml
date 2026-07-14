@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    # `main` tracks the newest Angular. `22.x`, `23.x`, … are the maintenance branches for older
+    # ones — one live library major per Angular major.
+    branches: [main, '[0-9]+.x']
+  pull_request:
+  # Callable, so the release workflow runs *exactly* these checks rather than a copy that drifts.
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  verify:
+    name: Lint, test, e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # .nvmrc is the single source of truth for the Node version, so CI and your laptop can't
+          # drift apart. Angular 22 is fussy about it in a way that produces a baffling error.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Angular version alignment
+        # The library major *is* the Angular major. Nothing in the toolchain enforces that, so this
+        # does — before anything is built, let alone published.
+        run: npm run check:versions
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build library and demo
+        run: npm run build:demo
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end
+        # Runs against the *built* demo, not the dev server: the demo imports the library from dist/,
+        # and rebuilding it under a running dev server races the file watcher.
+        run: |
+          node e2e/serve.mjs &
+          npx wait-on http://localhost:4321 --timeout 30000
+          npm run e2e
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: e2e/*.png
+          if-no-files-found: ignore

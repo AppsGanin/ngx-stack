@@ -1,0 +1,13 @@
+/* The stack fills the viewport and never scrolls itself — pages scroll, the host does not. */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+  background: #000;
+}
+
+app-root {
+  display: block;
+  height: 100dvh;
+}

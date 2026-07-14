@@ -1,0 +1,3 @@
+# semantic-release derives the version from these messages. A message it can't parse is a release
+# that silently doesn't happen — fail here instead, where it's cheap to fix.
+npx --no -- commitlint --edit "$1"

@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    // Schematics are a separate program that happens to ship in the same tarball: the Angular CLI
+    // `require()`s them in Node, it does not bundle them into anyone's app.
+    //
+    // Which is a problem, because ng-packagr stamps `"type": "module"` into the published
+    // package.json — so every .js file in the package is ESM, and CommonJS emitted here would be
+    // parsed as ESM, export nothing, and leave `ng update` silently doing nothing at all. The fix is
+    // the sibling `schematics/package.json`, which says `"type": "commonjs"` and scopes that back
+    // for this folder only. Node reads the *nearest* package.json, so it wins here and nowhere else.
+    "module": "node16",
+    "moduleResolution": "node16",
+    "target": "es2022",
+    "lib": ["es2022"],
+    "types": ["node"],
+
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "noEmitOnError": true,
+
+    "declaration": false,
+    "sourceMap": false,
+    "rootDir": ".",
+    "outDir": "../../../dist/ngx-stack/schematics"
+  },
+  "include": ["**/*.ts"]
+}

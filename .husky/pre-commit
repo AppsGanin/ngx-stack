@@ -1,0 +1,2 @@
+# Only what's staged, so committing one file doesn't lint the whole workspace.
+npx lint-staged

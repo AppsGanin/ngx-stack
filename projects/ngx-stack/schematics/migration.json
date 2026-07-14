@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/angular/angular-cli/main/packages/angular_devkit/schematics/collection-schema.json",
+  "schematics": {
+    "migration-v23": {
+      "version": "23.0.0",
+      "description": "Migrate an app from ngx-stack 22 to 23.",
+      "factory": "./migrations/v23/index#migrateToV23"
+    }
+  }
+}

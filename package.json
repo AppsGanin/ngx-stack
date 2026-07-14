@@ -1,0 +1,72 @@
+{
+  "name": "ngx-stack-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "ng": "ng",
+    "start": "ng build ngx-stack && ng serve demo",
+    "watch:lib": "ng build ngx-stack --watch",
+    "serve:demo": "ng serve demo",
+    "build": "ng build ngx-stack && npm run build:schematics",
+    "build:schematics": "tsc -p projects/ngx-stack/schematics/tsconfig.schematics.json",
+    "build:demo": "npm run build && ng build demo",
+    "serve:dist": "node e2e/serve.mjs",
+    "test": "ng test ngx-stack --watch=false && node --test \"scripts/*.test.mjs\"",
+    "e2e": "node e2e/swipe.e2e.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:versions": "node scripts/version.mjs check",
+    "release": "node scripts/version.mjs release",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,html}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.{json,md,scss,css,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "packageManager": "npm@10.9.8",
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  },
+  "dependencies": {
+    "@angular/common": "^22.0.0",
+    "@angular/compiler": "^22.0.0",
+    "@angular/core": "^22.0.0",
+    "@angular/forms": "^22.0.0",
+    "@angular/platform-browser": "^22.0.0",
+    "@angular/router": "^22.0.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular-devkit/core": "^22.0.6",
+    "@angular-devkit/schematics": "^22.0.6",
+    "@angular/build": "^22.0.6",
+    "@angular/cli": "^22.0.6",
+    "@angular/compiler-cli": "^22.0.0",
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.1",
+    "angular-eslint": "22.1.0",
+    "conventional-changelog-cli": "^5.0.0",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "jsdom": "^28.0.0",
+    "lint-staged": "^17.0.8",
+    "ng-packagr": "^22.0.0",
+    "playwright": "^1.61.1",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "8.62.1",
+    "vitest": "^4.0.8",
+    "wait-on": "^9.0.10"
+  }
+}

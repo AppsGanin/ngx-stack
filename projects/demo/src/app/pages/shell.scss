@@ -1,0 +1,108 @@
+:host {
+  --bar: 52px;
+  font:
+    16px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    system-ui,
+    sans-serif;
+  color: #111;
+  background: #fff;
+}
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--bar);
+  padding: 0 12px;
+  background: rgb(249 249 249 / 88%);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgb(0 0 0 / 12%);
+}
+
+.bar h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar button,
+.bar .spacer {
+  min-width: 64px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 17px;
+  color: #007aff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bar button:last-child {
+  text-align: right;
+}
+
+.body {
+  padding: 16px;
+}
+
+/* Rows are anchors, so they keep keyboard focus and a screen reader calls them links. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgb(0 0 0 / 8%);
+  cursor: pointer;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row:active {
+  background: #ededed;
+}
+
+.row .chev {
+  color: #c4c4c6;
+}
+
+.note {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f2f2f7;
+  color: #3c3c43;
+  font-size: 14px;
+}
+
+.note code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+}
+
+.big {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  border: 0;
+  border-radius: 12px;
+  background: #007aff;
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}

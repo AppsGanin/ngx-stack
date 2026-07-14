@@ -1,0 +1,53 @@
+name: Demo
+
+on:
+  push:
+    branches: [main]
+
+# Only one deploy at a time, and never cancel one halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the demo for a subdirectory
+        # Pages serves from /<repo>/, so the app has to be told where it lives or every absolute
+        # asset URL 404s.
+        run: |
+          npm run build
+          npx ng build demo --base-href "/${{ github.event.repository.name }}/"
+
+      - name: SPA fallback
+        # Pages is a static file server: it has never heard of /inbox/item/12 and serves 404.html for
+        # it. Making 404.html a copy of index.html boots the app anyway, and the router reads the URL
+        # and lands where it should. Without this every deep link into the demo is a dead link —
+        # which for *this* library would be a particularly embarrassing thing to ship.
+        run: cp dist/demo/browser/index.html dist/demo/browser/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/demo/browser
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
