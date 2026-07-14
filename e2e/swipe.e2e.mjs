@@ -67,12 +67,25 @@ const swipe = async ({ rtl = false, to } = {}) => {
   const target = to ?? (rtl ? 60 : 330);
   await page.mouse.move(from, 500);
 
-  // What the stack thinks its own state is, straight from the outlet's signals. `animating` is the
-  // one that matters: the gesture refuses to start while a transition is in flight, and a transition
-  // that never finished looks exactly like a gesture that mysteriously does nothing.
+  // The gesture arms on geometry: it only starts inside `swipeEdgeWidth` px of the host's leading
+  // edge. If the host isn't where the test thinks it is, the drag is refused and looks like nothing.
   const before = await page.evaluate((x) => {
-    const el = document.elementFromPoint(x, 500);
-    return `${JSON.stringify(window.__stack)} hit=${el?.tagName.toLowerCase()}`;
+    const host = document.querySelector('ngx-stack-outlet');
+    const r = host.getBoundingClientRect();
+
+    // Capture phase, so this runs before the gesture's own listener: proves the event arrives.
+    window.__md = 0;
+    host.addEventListener('mousedown', () => (window.__md = (window.__md ?? 0) + 1), {
+      capture: true,
+      once: true,
+    });
+
+    return (
+      `${JSON.stringify(window.__stack)} ` +
+      `host=[l:${Math.round(r.left)} w:${Math.round(r.width)} cw:${host.clientWidth}] ` +
+      `dir=${getComputedStyle(host).direction} ` +
+      `hit=${document.elementFromPoint(x, 500)?.tagName.toLowerCase()}`
+    );
   }, from);
 
   await page.mouse.down();
@@ -92,9 +105,11 @@ const swipe = async ({ rtl = false, to } = {}) => {
     return pages.join(', ');
   });
 
+  const arrived = await page.evaluate(() => window.__md);
+
   await page.mouse.up();
   await settle(400);
-  return `before: ${before} | during: ${dragging}`;
+  return `before: ${before} mousedowns=${arrived} | during: ${dragging}`;
 };
 
 const tab = (name) => page.locator(`[data-tab=${name}]`).click();
