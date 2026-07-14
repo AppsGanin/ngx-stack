@@ -39,6 +39,28 @@ const countIn = async (tags) => (await allPages()).filter((p) => tags.includes(p
 const visible = async () => (await allPages()).filter((p) => !p.hidden).map((p) => p.tag);
 const lastTransition = () => page.evaluate(() => window.__lastTransition);
 
+/**
+ * Wait for the stack to stop moving.
+ *
+ * `min` is a floor, not the wait: after it, this blocks until nothing carries the `--animating`
+ * class, which the controller only drops once the transition has finished, the popped page has been
+ * destroyed and the router has landed.
+ *
+ * Sleeping a fixed number of milliseconds is how you get a suite that is green on your laptop and
+ * red on a shared runner — which is exactly what happened here. The swipe's commit chain (settle the
+ * animation → history.back() → re-activate → destroy the page) fits comfortably in 900ms on this
+ * machine and does not on a 2-core CI box, and the test had no way to tell "not finished" from
+ * "did not happen".
+ */
+const settle = async (min = 600) => {
+  await page.waitForTimeout(min);
+  await page.waitForFunction(
+    () => document.querySelectorAll('.ngx-stack-page--animating').length === 0,
+    null,
+    { timeout: 15_000 },
+  );
+};
+
 /** Drag from the leading edge all the way across. `rtl` starts at the right instead. */
 const swipe = async ({ rtl = false, to } = {}) => {
   const from = rtl ? 386 : 4;
@@ -48,7 +70,7 @@ const swipe = async ({ rtl = false, to } = {}) => {
   await page.mouse.move(rtl ? from - 16 : from + 16, 500, { steps: 2 });
   await page.mouse.move(target, 500, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(900);
+  await settle(400);
 };
 
 const tab = (name) => page.locator(`[data-tab=${name}]`).click();
@@ -59,9 +81,9 @@ const onTop = (sel) => page.locator(`.ngx-stack-page:not(.ngx-stack-page--hidden
 /** Go to a tab and unwind it to its root — tapping the tab you're already on does that. */
 const tabRoot = async (name) => {
   await tab(name);
-  await page.waitForTimeout(600);
+  await settle(600);
   await tab(name);
-  await page.waitForTimeout(800);
+  await settle(800);
 };
 
 // ---------------------------------------------------------------------------
@@ -77,7 +99,7 @@ await page.evaluate(() => (document.querySelector('demo-inbox').scrollTop = 420)
 
 // -------------------------------------------------------------------- push
 await page.getByText('Message 12', { exact: true }).click();
-await page.waitForTimeout(700);
+await settle(700);
 check('push navigated', page.url().endsWith('/inbox/item/12'), page.url());
 check('two pages mounted', (await countIn(INBOX)) === 2);
 check(
@@ -127,7 +149,7 @@ check(
 // ------------------------------------------------------------ abort a swipe
 await page.mouse.move(15, 500, { steps: 8 });
 await page.mouse.up();
-await page.waitForTimeout(700);
+await settle(700);
 check('abort: stayed put', page.url().endsWith('/inbox/item/12'), page.url());
 check(
   'abort: page underneath hidden again',
@@ -153,14 +175,14 @@ check(
 // ===========================================================================
 
 await page.getByText('Message 7', { exact: true }).click();
-await page.waitForTimeout(600);
+await settle(600);
 await page.locator('demo-item input').fill('draft on item 7');
 await page.locator('button', { hasText: 'Push a third page' }).click();
-await page.waitForTimeout(700);
+await settle(700);
 check('inbox is three deep', (await countIn(INBOX)) === 3);
 
 await tab('search');
-await page.waitForTimeout(600);
+await settle(600);
 check('tab switch: URL moved to search', page.url().endsWith('/search'), page.url());
 check(
   'tab switch: search page visible',
@@ -181,12 +203,12 @@ check(
 
 await page.locator('[data-test=query]').fill('hello from search');
 await page.getByText('Result 3', { exact: true }).click();
-await page.waitForTimeout(700);
+await settle(700);
 check('search has its own stack', (await countIn(SEARCH)) === 2);
 check('inbox stack untouched by search', (await countIn(INBOX)) === 3);
 
 await tab('inbox');
-await page.waitForTimeout(600);
+await settle(600);
 check('back to inbox: still three deep', (await countIn(INBOX)) === 3);
 check(
   'back to inbox: landed where we left it',
@@ -199,7 +221,7 @@ check(
 );
 
 await tab('search');
-await page.waitForTimeout(600);
+await settle(600);
 check(
   'NgxStackTabs remembered where search was',
   page.url().endsWith('/search/result/3'),
@@ -220,12 +242,12 @@ check('swipe inside a tab left the other tab alone', (await countIn(INBOX)) === 
 // ===========================================================================
 
 await tab('settings');
-await page.waitForTimeout(600);
+await settle(600);
 
 // 1. app-wide switch
 await page.locator('[data-test=toggle-swipe]').click();
 await tab('inbox');
-await page.waitForTimeout(600);
+await settle(600);
 await swipe();
 check(
   'global switch off: gesture does not start',
@@ -234,10 +256,10 @@ check(
 );
 
 await tab('settings');
-await page.waitForTimeout(600);
+await settle(600);
 await page.locator('[data-test=toggle-swipe]').click(); // back on
 await tab('inbox');
-await page.waitForTimeout(600);
+await settle(600);
 
 // 2. page veto — ngxCanSwipeBack()
 await page.locator('[data-test=dirty]').check();
@@ -253,9 +275,9 @@ check('page veto lifted: gesture works again', page.url().endsWith('/inbox/item/
 
 // 3. canDeactivate guard blocks the gesture before it can start
 await tab('settings');
-await page.waitForTimeout(600);
+await settle(600);
 await page.locator('[data-test=go-guarded]').click();
-await page.waitForTimeout(700);
+await settle(700);
 check('guarded page pushed', page.url().endsWith('/settings/guarded'), page.url());
 
 await swipe();
@@ -268,7 +290,7 @@ check(
 // …but the back button still runs the guard.
 page.once('dialog', (d) => d.accept());
 await page.locator('[data-test=guarded-back]').click();
-await page.waitForTimeout(800);
+await settle(800);
 check('guarded page: the back button still works', page.url().endsWith('/settings'), page.url());
 
 // ===========================================================================
@@ -279,7 +301,7 @@ await page.locator('[data-test=toggle-rtl]').click();
 await page.waitForTimeout(200);
 await tabRoot('inbox');
 await page.getByText('Message 20', { exact: true }).click();
-await page.waitForTimeout(700);
+await settle(700);
 check('rtl: pushed a page', page.url().endsWith('/inbox/item/20'), page.url());
 
 // The gesture has moved: the left edge is now dead.
@@ -297,7 +319,7 @@ await page.screenshot({ path: `${OUT}/rtl.png` });
 
 // back to LTR for the rest
 await tab('settings');
-await page.waitForTimeout(600);
+await settle(600);
 await page.locator('[data-test=toggle-rtl]').click();
 await page.waitForTimeout(200);
 
@@ -307,12 +329,12 @@ await page.waitForTimeout(200);
 
 await tabRoot('inbox');
 await page.getByText('Message 1', { exact: true }).click();
-await page.waitForTimeout(600);
+await settle(600);
 
 // inbox + item/1 = 2. Push four more to reach 6, one past the cap of 5.
 for (let i = 0; i < 4; i++) {
   await onTop('[data-test=deeper]').click();
-  await page.waitForTimeout(500);
+  await settle(500);
 }
 check(
   'maxDepth: stack capped at 5',
@@ -325,7 +347,7 @@ check('maxDepth: the deepest page is on top', page.url().endsWith('/inbox/item/5
 // still animates as a back, because that is what actually happened.
 for (let i = 0; i < 5; i++) {
   await page.goBack();
-  await page.waitForTimeout(450);
+  await settle(450);
 }
 check('maxDepth: walked back to a pruned page', page.url().endsWith('/inbox'), page.url());
 check('maxDepth: pruned page was rebuilt', await page.locator('demo-inbox').isVisible());
@@ -342,15 +364,15 @@ check('maxDepth: stack collapsed to just it', (await countIn(INBOX)) === 1);
 // ===========================================================================
 
 await tab('settings');
-await page.waitForTimeout(600);
+await settle(600);
 await page.locator('[data-test=go-sheet]').click();
-await page.waitForTimeout(700);
+await settle(700);
 const urlAtSheet = page.url();
 
 await page.locator('button', { hasText: 'Continue to brand' }).click();
-await page.waitForTimeout(700);
+await settle(700);
 await page.locator('button', { hasText: 'Continue to price' }).click();
-await page.waitForTimeout(700);
+await settle(700);
 check('imperative push works', await page.locator('demo-filter-3').isVisible());
 check('imperative push does not touch the URL', page.url() === urlAtSheet, page.url());
 check(
@@ -384,7 +406,7 @@ await page.screenshot({ path: `${OUT}/final.png` });
 
 await tabRoot('inbox');
 await onTop('[data-test=go-starred]').click();
-await page.waitForTimeout(700);
+await settle(700);
 
 check('data.tab: pushed /starred', page.url().endsWith('/starred'), page.url());
 check(
@@ -408,23 +430,23 @@ const historyLength = () => page.evaluate(() => history.length);
 
 await page.goto(`${BASE}/search`);
 await page.waitForSelector('demo-search');
-await page.waitForTimeout(500);
+await settle(500);
 
 // routerLink, with no library API involved anywhere.
 await page.locator('a.row', { hasText: 'Result 2' }).click();
-await page.waitForTimeout(700);
+await settle(700);
 check('routerLink pushes a page', page.url().endsWith('/search/result/2'), page.url());
 check('routerLink: stack grew', (await countIn(SEARCH)) === 2);
 
 await onTop('a.big').click();
-await page.waitForTimeout(700);
+await settle(700);
 check('routerLink again, deeper', (await countIn(SEARCH)) === 3, page.url());
 
 // replaceUrl overwrites the history entry, so the stack must swap its top rather than grow.
 const pagesBefore = await countIn(SEARCH);
 const historyBefore = await historyLength();
 await onTop('[data-test=replace]').click();
-await page.waitForTimeout(800);
+await settle(800);
 
 check(
   'replaceUrl: history did not grow',
@@ -440,7 +462,7 @@ check('replaceUrl: URL is the new one', page.url().endsWith('/search/result/4'),
 
 // And back must land on the page *below* the replaced one, not on the page it replaced.
 await page.goBack();
-await page.waitForTimeout(800);
+await settle(800);
 check(
   'replaceUrl: back skips the page that was replaced away',
   page.url().endsWith('/search/result/2'),
@@ -457,7 +479,7 @@ check('replaceUrl: stack agrees with history', (await countIn(SEARCH)) === 2);
 // into view, and a back button that walks out of the app.
 await page.goto(`${BASE}/inbox/item/12/notes`);
 await page.waitForSelector('demo-notes');
-await page.waitForTimeout(800);
+await settle(800);
 
 check(
   'deep link: the ancestors were rebuilt beneath it',
