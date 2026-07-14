@@ -73,12 +73,13 @@ const swipe = async ({ rtl = false, to } = {}) => {
     const host = document.querySelector('ngx-stack-outlet');
     const r = host.getBoundingClientRect();
 
-    // Capture phase, so this runs before the gesture's own listener: proves the event arrives.
-    window.__md = 0;
-    host.addEventListener('mousedown', () => (window.__md = (window.__md ?? 0) + 1), {
-      capture: true,
-      once: true,
-    });
+    // The gesture listens in the bubble phase. A capture listener fires on the way *down* no matter
+    // what; a bubble one only fires if the event actually made it back up. If these disagree,
+    // something between the page and the outlet is eating the event.
+    window.__md = { capture: 0, bubble: 0, move: 0 };
+    host.addEventListener('mousedown', () => window.__md.capture++, { capture: true, once: true });
+    host.addEventListener('mousedown', () => window.__md.bubble++, { once: true });
+    document.addEventListener('mousemove', () => window.__md.move++);
 
     return (
       `${JSON.stringify(window.__stack)} ` +
@@ -105,11 +106,11 @@ const swipe = async ({ rtl = false, to } = {}) => {
     return pages.join(', ');
   });
 
-  const arrived = await page.evaluate(() => window.__md);
+  const arrived = await page.evaluate(() => JSON.stringify(window.__md));
 
   await page.mouse.up();
   await settle(400);
-  return `before: ${before} mousedowns=${arrived} | during: ${dragging}`;
+  return `before: ${before} events=${arrived} | during: ${dragging}`;
 };
 
 const tab = (name) => page.locator(`[data-tab=${name}]`).click();
