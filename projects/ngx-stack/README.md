@@ -589,20 +589,41 @@ matters for more than the back button: `hasSystemBackGesture` keys off `isNative
 **Cordova** app doesn't needlessly concede the first 16px of the screen edge to a gesture its
 webview doesn't have.
 
-## The iOS browser caveat, honestly
+## The iOS Safari caveat, honestly
 
-In **iOS Safari and iOS PWAs** — not Capacitor — WebKit reserves the screen edge for its own
-interactive back navigation, and there is no API to turn that off. This is a real,
-long-standing limitation, not something this library is failing to work around. Your options
-are all imperfect, so pick one:
+In **iOS Safari and iOS PWAs** — not Capacitor — WebKit runs its own interactive edge-swipe back
+navigation, and it will win over this library's. This is a real, long-standing WebKit limitation,
+not something the library is failing to work around.
 
-| `systemGesture` | What it does                                                                                                                                                                                                                                  |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `'inset'`       | **Default.** Start our zone `systemEdgeInset` px (16) inland so the two don't fight. WebKit still owns the outermost pixels; when it navigates, we detect it via `hasUAVisualTransition` and skip our animation rather than double-animating. |
-| `'suppress'`    | `preventDefault()` the touchstart in the edge zone, which does stop WebKit. But it also suppresses the synthetic `click` for touches starting there — don't use it if you have tappable UI near the left edge.                                |
-| `'ignore'`      | Do nothing and let both gestures coexist.                                                                                                                                                                                                     |
+**What actually gives that gesture something to grab is browser history.** The system swipe navigates
+`history.back()`. This library is built on the Angular Router and every push is a _real_ history
+entry — that is what makes deep links, reload, share, and the browser's own back button work. The
+cost is that WebKit's edge swipe then has a real target, and at the very edge it navigates before our
+gesture arms.
 
-None of this applies under Capacitor.
+Worth being precise about, because it is tempting to think otherwise: **nothing web-side reliably
+disables that gesture.** Not `overscroll-behavior`, not `touch-action`, and not `preventDefault` on
+touchstart. Frameworks that appear to "block" it (Framework7, for instance) do so by _not writing to
+browser history at all_ — with no previous entry, the swipe has nowhere to go and fires inertly. That
+is a different trade than this library makes, and it costs you real URLs.
+
+So, honestly:
+
+- **Capacitor / Cordova is the clean answer.** Their WKWebView has `allowsBackForwardNavigationGestures`
+  off, so there is no system gesture and ours simply works. This is the target the library is built
+  for.
+- **In iOS Safari**, the settings below only _reduce the overlap_ — they do not defeat the system
+  gesture:
+
+| `systemGesture` | What it does                                                                                                                                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `'inset'`       | **Default.** Start our zone `systemEdgeInset` px (16) inland, so a drag that begins past the very edge is ours. WebKit still owns the outermost pixels; when _it_ navigates we detect `hasUAVisualTransition` and skip our animation rather than double-animating. |
+| `'suppress'`    | `preventDefault()` the touchstart in the edge zone. Helps in some embedded WebViews, but **does not stop mobile Safari's system navigation** — and it suppresses the synthetic `click` for touches starting there. Rarely worth it.                                |
+| `'ignore'`      | Do nothing; let both gestures coexist.                                                                                                                                                                                                                             |
+
+If winning the gesture in iOS Safari matters more to you than real URLs, the way to get there is the
+Framework7 trade — drive the stack without back-navigable history entries (`replaceState` instead of
+`pushState`). The library doesn't do that today; open an issue if you want it as a mode.
 
 ## Page lifecycle
 

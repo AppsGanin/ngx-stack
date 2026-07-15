@@ -12,21 +12,23 @@ export interface StackTransitionMap {
 /**
  * What to do about the browser's *own* edge-swipe back gesture.
  *
- * Only relevant on iOS Safari and iOS standalone PWAs — WebKit reserves the screen edge for
- * its own interactive back navigation and gives you no way to turn it off. Under Capacitor
- * the webview has no such gesture, so this setting does nothing there.
+ * Only relevant on iOS Safari and iOS standalone PWAs — WebKit runs its own interactive back
+ * navigation at the screen edge, and on a Router-based stack (real history entries) it will win over
+ * ours. Nothing web-side reliably disables it, so these options only *reduce the overlap*; the clean
+ * answer is a native shell (Capacitor/Cordova), whose WKWebView has the gesture off. See the "iOS
+ * Safari caveat" in the README.
  */
 export type SystemGesturePolicy =
   /**
-   * Start our gesture zone a few px inland so the two don't fight over the same pixels. The
-   * system still owns the outermost `systemEdgeInset` px; when it fires we notice and skip
-   * our own animation rather than drawing a second one on top of WebKit's.
+   * Start our gesture zone a few px inland so the two don't fight over the same pixels. The system
+   * still owns the outermost `systemEdgeInset` px; when it fires we notice via `hasUAVisualTransition`
+   * and skip our own animation rather than drawing a second one on top of WebKit's.
    */
   | 'inset'
   /**
-   * `preventDefault()` the touchstart inside the edge zone, which stops WebKit starting its
-   * gesture. Reliable, but it also suppresses the synthetic `click` for touches beginning
-   * there — don't use it if you have tappable UI within `swipeEdgeWidth` px of the edge.
+   * `preventDefault()` the touchstart inside the edge zone. Helps in some embedded WebViews, but does
+   * **not** stop mobile Safari's system navigation — `preventDefault` doesn't reach it. It also
+   * suppresses the synthetic `click` for touches beginning there, so rarely worth it.
    */
   | 'suppress'
   /** Do nothing, and let both gestures coexist. */
