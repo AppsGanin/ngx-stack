@@ -47,6 +47,13 @@ export const appConfig: ApplicationConfig = {
       // forever (a chat, a wiki, a file browser). Try it here with `?maxDepth=5`.
       maxDepth,
 
+      // The library respects `prefers-reduced-motion` by default — a real app should, and yours
+      // will. But this is a showcase: a visitor whose OS has "reduce motion" on would see every
+      // transition happen instantly and conclude the library doesn't animate at all. So the demo,
+      // and only the demo, always animates. (This is exactly the setting to check if your own
+      // transitions look dead — it's on somewhere in your browser or OS.)
+      respectReducedMotion: false,
+
       // Lets the edge drag be performed with a mouse. For development; leave off in production.
       swipeWithMouse: true,
     }),
