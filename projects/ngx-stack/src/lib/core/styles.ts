@@ -13,6 +13,15 @@ const CSS = `
   height: 100%;
   overflow: hidden;
 
+  /* Stop Chrome/Android turning a horizontal drag that is not an armed swipe into its own overscroll
+     back-navigation, which would fire underneath the gesture and fight it. This is the one thing web
+     content genuinely can do about a system gesture, and only on Android: iOS Safari's edge swipe is
+     drawn by WebKit and no CSS or preventDefault suppresses it (that is what systemGesture is for,
+     and why native shells are the easy target). Framework7 ships the same line for the same reason. */
+  overscroll-behavior: none;
+  /* Kills the 300ms double-tap-zoom delay without touching the pan/scroll the gesture relies on. */
+  touch-action: manipulation;
+
   /* Notches, home indicators, and the Android navigation bar. Declared here so pages can just
      use var(--ngx-stack-safe-top) without every one of them repeating the env() dance — and so
      they still resolve to 0px on a browser that has never heard of a notch. */
