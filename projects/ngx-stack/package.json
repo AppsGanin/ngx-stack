@@ -1,6 +1,6 @@
 {
   "name": "ngx-stack",
-  "version": "22.0.0",
+  "version": "22.0.1",
   "description": "Native-feeling page stacks for Angular: push/pop transitions and an interactive iOS swipe-to-go-back. Built for Capacitor and Cordova, works on the web.",
   "keywords": [
     "angular",
