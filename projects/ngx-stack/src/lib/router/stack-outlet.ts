@@ -356,7 +356,7 @@ export class NgxStackOutlet
     url: string,
     tab: string,
   ): StackEntry {
-    const component = route.snapshot.routeConfig?.component;
+    const component = route.snapshot.component;
     if (!component) {
       throw new Error(
         `[ngx-stack] Route "${url}" has no component. <ngx-stack-outlet> can only host component ` +
